@@ -68,7 +68,6 @@ Then install **SAM2**:
 ```bash
 cd model_code/mois_sam2_nf
 pip install -e .
-pip install -e ".[dev]"
 ```
 Install additional packages:
 ```bash
