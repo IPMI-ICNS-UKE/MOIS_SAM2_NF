@@ -69,6 +69,11 @@ Then install **SAM2**:
 cd model_code/mois_sam2_nf
 pip install -e .
 ```
+**Update:**
+```bash
+pip install --force-reinstall torch torchvision
+pip uninstall sam2
+```
 Install additional packages:
 ```bash
 pip install git+https://github.com/cheind/py-thin-plate-spline
