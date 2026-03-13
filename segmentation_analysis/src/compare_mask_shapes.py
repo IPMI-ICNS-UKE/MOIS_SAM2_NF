@@ -8,17 +8,21 @@ def compare_mask_shapes(
     This is my function for comparing shapes of masks for each patient.
     """
     shapes_by_file = load_mask_shapes(base_dir)
-    mask_comparison_results: dict[str, dict[str, object]] = {}
+    shape_comparison_results: dict[str, dict[str, object]] = {}
 
     for pat_file, unsorted_shapes_by_rater in sorted(shapes_by_file.items()):
         shapes_by_rater = dict(sorted(unsorted_shapes_by_rater.items()))
         unique_shapes = sorted(set(shapes_by_rater.values()))
 
-        mask_comparison_results[pat_file] = {
+        shape_comparison_results[pat_file] = {
             "shapes_by_rater": shapes_by_rater,
             "all_shapes_equal": len(unique_shapes) == 1,
             "reference_shape": unique_shapes[0] if len(unique_shapes) == 1 else None,
         }
+        # ext_key:      [pat_file]
+        # ext_value:    int_dict
+        # int_dict:     {"shapes_by_rater": dict, "all_shapes_equal": bool, "reference_shape": tuple/None}
+
         # mask_comparison_results = {
         #     patient_1: {
         #         "shapes_by_rater": {rater_1: shape_1_1, rater_2: shape_1_2, ...},
@@ -27,7 +31,7 @@ def compare_mask_shapes(
         #     }
         # }
 
-    return dict(mask_comparison_results)
+    return shape_comparison_results
 
 
 def print_shape_comparison_report(

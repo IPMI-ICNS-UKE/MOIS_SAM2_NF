@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from src.display_names import get_display_pat_file_name, get_display_rater_name
-from src.unify_masks import normalize_masks_to_binary
+from src.unify_masks import unify_masks_to_binary
 
 
 def calculate_dice_score(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
@@ -33,7 +33,7 @@ def calculate_dice_scores_by_pat_files(
     """
     This is my function for calculating dice scores for each patient and rater pair.
     """
-    binary_masks_by_file = normalize_masks_to_binary(base_dir)
+    binary_masks_by_file = unify_masks_to_binary(base_dir)
 
     dice_scores_by_file: dict[str, list[dict[str, object]]] = {}
 

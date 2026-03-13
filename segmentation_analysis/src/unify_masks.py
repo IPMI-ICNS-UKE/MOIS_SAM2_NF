@@ -4,7 +4,7 @@ import numpy as np
 import SimpleITK as sitk
 
 
-def normalize_masks_to_binary(
+def unify_masks_to_binary(
     base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
 ) -> dict[str, dict[str, np.ndarray]]:
     """
@@ -38,6 +38,10 @@ def normalize_masks_to_binary(
                 binary_masks_by_file[pat_file.name] = {}
 
             binary_masks_by_file[pat_file.name][rater_dir.name] = binary_mask
+            # ext_key:    [pat_file.name]
+            # int_key:    [rater_dir.name]
+            # int_value:  binary_mask
+
             # binary_masks_by_file: {
             #     patient_1:{
             #         rater_1: array_1_1(...),
@@ -57,7 +61,7 @@ def normalize_masks_to_binary(
 def print_binary_mask_summary(
     base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
 ) -> None:
-    binary_masks_by_file = normalize_masks_to_binary(base_dir)
+    binary_masks_by_file = unify_masks_to_binary(base_dir)
 
     for file_name in sorted(binary_masks_by_file):
         print(f"\n{file_name}")

@@ -16,7 +16,7 @@ def calculate_mean_dice_scores_by_pairs(
     """
     dice_scores_by_file = calculate_dice_scores_by_pat_files(base_dir)
 
-    scores_by_rater_pair: dict[tuple[str, str], list[float]] = defaultdict(list)
+    scores_by_rater_pair: dict[tuple[str, str], list[float]] = {defaultdict(list)}
 
     # rater_pair: tuple[str, str]
     # dice_score: list[float]
@@ -24,24 +24,18 @@ def calculate_mean_dice_scores_by_pairs(
     # scores_by_rater_pair: dict[
     #     tuple[str, str],
     #     list[float]
-    # ] = defaultdict(list)
+    # ]
 
     for file_results in dice_scores_by_file.values():
         for result in file_results:
             rater_pair = (result["rater_a"], result["rater_b"])
+
+            if not rater_pair in scores_by_rater_pair:
+                scores_by_rater_pair[rater_pair] = []
+
             scores_by_rater_pair[rater_pair].append(result["dice_score"])
 
     mean_dice_scores: list[dict[str, object]] = []
-
-    # per_rater_pair: dict[str, object] = {
-    #    "rater_a":         str,
-    #    "rater_b":         str,
-    #    "mean_dice_score": float,
-    #    "num_files":       int,
-    # }
-    # mean_dice_scores: list[
-    #     per_rater_pair
-    # ] = []
 
     for rater_pair, dice_scores in sorted(scores_by_rater_pair.items()):
         mean_dice_scores.append(
@@ -52,6 +46,13 @@ def calculate_mean_dice_scores_by_pairs(
                 "num_files": len(dice_scores),
             }
         )
+        # per_rater_pair: dict[str, object] = {
+        #    "rater_a":         str,
+        #    "rater_b":         str,
+        #    "mean_dice_score": float,
+        #    "num_files":       int,
+        # }
+        # mean_dice_scores: list[per_rater_pair] = []
 
     return mean_dice_scores
 

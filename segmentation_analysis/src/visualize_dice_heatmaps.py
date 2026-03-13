@@ -14,7 +14,7 @@ HEATMAP_CMAP.set_bad(color="white")
 
 
 def _build_symmetric_matrix(
-    rows: list[dict[str, str]], value_key: str
+    rows: list[dict[str, str]], column: str
 ) -> tuple[list[str], np.ndarray]:
     rater_label_by_name: dict[str, str] = {}
 
@@ -36,7 +36,7 @@ def _build_symmetric_matrix(
     matrix = np.full((len(rater_names), len(rater_names)), np.nan, dtype=float)
 
     for row in rows:
-        dice_score_value = float(row[value_key])
+        dice_score_value = float(row[column])
         index_a = rater_index[row["rater_a"]]
         index_b = rater_index[row["rater_b"]]
         matrix[index_a, index_b] = dice_score_value
@@ -132,21 +132,21 @@ def create_dice_heatmaps_by_pat(
     #     ]
     # }
 
-    for row in rows:
-        rows_by_file.setdefault(row["pat_file"], []).append(row)
     # for row in rows:
-    #     pat_file = row["pat_file"]
+    #     rows_by_file.setdefault(row["pat_file"], []).append(row)
+    for row in rows:
+        pat_file = row["pat_file"]
 
-    #     if not pat_file in rows_by_file:
-    #         rows_by_file[pat_file] = []
+        if not pat_file in rows_by_file:
+            rows_by_file[pat_file] = []
 
-    #     rows_by_file[pat_file].append(row)
+        rows_by_file[pat_file].append(row)
 
     output_paths: list[Path] = []
 
-    for pat_file, rows in sorted(rows_by_file.items()):
-        rater_labels, matrix = _build_symmetric_matrix(rows, "dice_score")
-        pat_label = rows[0].get("pat_label", pat_file)
+    for pat_file, file_rows in sorted(rows_by_file.items()):
+        rater_labels, matrix = _build_symmetric_matrix(file_rows, "dice_score")
+        pat_label = file_rows[0].get("pat_label", pat_file)
         output_path = Path(output_dir) / f"{pat_label}_heatmap.png"
         heatmap_path = _plot_heatmap(
             matrix, rater_labels, f"Dice Scores: {pat_label}", output_path

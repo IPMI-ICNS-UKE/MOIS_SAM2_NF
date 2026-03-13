@@ -16,7 +16,6 @@ def load_mask_shapes(
         raise FileNotFoundError(f"Directory not found: {base_path}")
 
     rater_dirs = sorted(path for path in base_path.iterdir() if path.is_dir())
-
     # rater_dirs = []
     # for path in base_path.iterdir():
     #     if path.is_dir():
@@ -29,7 +28,7 @@ def load_mask_shapes(
     if not rater_dirs:
         raise FileNotFoundError(f"No subdirectories found in: {base_path}")
 
-    shapes_by_file: dict[str, dict[str, tuple[int, ...]]] = defaultdict(dict)
+    shapes_by_file: dict[str, dict[str, tuple[int, ...]]] = {}
 
     for rater_dir in rater_dirs:
         pat_files = sorted(rater_dir.glob("*.nii.gz"))
@@ -40,7 +39,15 @@ def load_mask_shapes(
         for pat_file in pat_files:
             mask = sitk.ReadImage(str(pat_file))
             shape = sitk.GetArrayFromImage(mask).shape
+
+            if pat_file.name not in shapes_by_file:
+                shapes_by_file[pat_file.name] = {}
+
             shapes_by_file[pat_file.name][rater_dir.name] = shape
+            # ext_key:      [pat_file.name]
+            # int_key:      [rater_dir.name]
+            # int_value:    shape
+
             # shapes_by_file = {
             #       patient_1: {
             #           rater_1: shape_1_1,
@@ -56,7 +63,7 @@ def load_mask_shapes(
     if not shapes_by_file:
         raise FileNotFoundError(f"No .nii.gz files found in: {base_path}")
 
-    return dict(shapes_by_file)
+    return shapes_by_file
 
 
 def print_mask_shapes(
