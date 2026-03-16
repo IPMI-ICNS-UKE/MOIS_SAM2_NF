@@ -5,12 +5,79 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
+try:
+    from .display_names import get_display_pat_file_name, get_display_rater_name
+    from .paths import (
+        DICE_HEATMAPS_BY_PAT_DIR,
+        DICE_MEAN_HEATMAP_PATH,
+        DICE_SCORES_CSV,
+        MEAN_DICE_SCORES_CSV,
+    )
+except ImportError:
+    from display_names import get_display_pat_file_name, get_display_rater_name
+    from paths import (
+        DICE_HEATMAPS_BY_PAT_DIR,
+        DICE_MEAN_HEATMAP_PATH,
+        DICE_SCORES_CSV,
+        MEAN_DICE_SCORES_CSV,
+    )
+
 
 HEATMAP_CMAP = LinearSegmentedColormap.from_list(
     "dice_custom",
     ["#0B1675", "#680083", "#BD4F75", "#FEA151", "#FCE833"],
 )
 HEATMAP_CMAP.set_bad(color="white")
+
+
+def _load_csv_rows(csv_path: str | Path) -> list[dict[str, str]]:
+    source_path = Path(csv_path)
+
+    with source_path.open("r", encoding="utf-8", newline="") as csv_file:
+        return list(csv.DictReader(csv_file))
+
+
+def _build_mean_dice_rows(
+    mean_dice_scores: list[dict[str, object]],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+
+    for result in mean_dice_scores:
+        rows.append(
+            {
+                "rater_a": str(result["rater_a"]),
+                "rater_a_label": get_display_rater_name(str(result["rater_a"])),
+                "rater_b": str(result["rater_b"]),
+                "rater_b_label": get_display_rater_name(str(result["rater_b"])),
+                "mean_dice_score": str(result["mean_dice_score"]),
+            }
+        )
+
+    return rows
+
+
+def _build_dice_score_rows_by_file(
+    dice_scores_by_file: dict[str, list[dict[str, object]]],
+) -> dict[str, list[dict[str, str]]]:
+    rows_by_file: dict[str, list[dict[str, str]]] = {}
+
+    for pat_file, file_results in dice_scores_by_file.items():
+        rows_by_file[pat_file] = []
+
+        for result in file_results:
+            rows_by_file[pat_file].append(
+                {
+                    "pat_file": pat_file,
+                    "pat_label": get_display_pat_file_name(pat_file),
+                    "rater_a": str(result["rater_a"]),
+                    "rater_a_label": get_display_rater_name(str(result["rater_a"])),
+                    "rater_b": str(result["rater_b"]),
+                    "rater_b_label": get_display_rater_name(str(result["rater_b"])),
+                    "dice_score": str(result["dice_score"]),
+                }
+            )
+
+    return rows_by_file
 
 
 def _build_symmetric_matrix(
@@ -87,13 +154,14 @@ def _plot_heatmap(
 
 
 def create_mean_dice_heatmap(
-    csv_path: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/mean_dice_scores.csv",
-    output_path: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/dice_heatmaps/mean_dice_heatmap.png",
+    mean_dice_scores: list[dict[str, object]] | None = None,
+    csv_path: str | Path = MEAN_DICE_SCORES_CSV,
+    output_path: str | Path = DICE_MEAN_HEATMAP_PATH,
 ) -> Path:
-    source_path = Path(csv_path)
-
-    with source_path.open("r", encoding="utf-8", newline="") as csv_file:
-        rows = list(csv.DictReader(csv_file))
+    if mean_dice_scores is None:
+        rows = _load_csv_rows(csv_path)
+    else:
+        rows = _build_mean_dice_rows(mean_dice_scores)
 
     rater_labels, matrix = _build_symmetric_matrix(rows, "mean_dice_score")
     mean_dice_heatmap_path = _plot_heatmap(
@@ -104,15 +172,15 @@ def create_mean_dice_heatmap(
 
 
 def create_dice_heatmaps_by_pat(
-    csv_path: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/dice_scores.csv",
-    output_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/dice_heatmaps",
+    dice_scores_by_file: dict[str, list[dict[str, object]]] | None = None,
+    csv_path: str | Path = DICE_SCORES_CSV,
+    output_dir: str | Path = DICE_HEATMAPS_BY_PAT_DIR,
 ) -> list[Path]:
-    source_path = Path(csv_path)
+    rows_by_file: dict[str, list[dict[str, str]]]
 
-    with source_path.open("r", encoding="utf-8", newline="") as csv_file:
-        rows = list(csv.DictReader(csv_file))
-
-    rows_by_file: dict[str, list[dict[str, str]]] = {}
+    if dice_scores_by_file is None:
+        rows = _load_csv_rows(csv_path)
+        rows_by_file = {}
     # ext_dict: "pat_file"
     # int_dict: list[pat_file_rows]
     #
@@ -132,15 +200,17 @@ def create_dice_heatmaps_by_pat(
     #     ]
     # }
 
-    # for row in rows:
-    #     rows_by_file.setdefault(row["pat_file"], []).append(row)
-    for row in rows:
-        pat_file = row["pat_file"]
+        # for row in rows:
+        #     rows_by_file.setdefault(row["pat_file"], []).append(row)
+        for row in rows:
+            pat_file = row["pat_file"]
 
-        if not pat_file in rows_by_file:
-            rows_by_file[pat_file] = []
+            if not pat_file in rows_by_file:
+                rows_by_file[pat_file] = []
 
-        rows_by_file[pat_file].append(row)
+            rows_by_file[pat_file].append(row)
+    else:
+        rows_by_file = _build_dice_score_rows_by_file(dice_scores_by_file)
 
     output_paths: list[Path] = []
 

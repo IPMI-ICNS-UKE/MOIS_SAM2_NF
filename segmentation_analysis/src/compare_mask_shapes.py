@@ -1,13 +1,19 @@
-from src.load_masks import load_mask_shapes
+from pathlib import Path
+
+try:
+    from .load_masks import load_mask_shapes
+    from .paths import SEGMENTATION_BASE_DIR
+except ImportError:
+    from load_masks import load_mask_shapes
+    from paths import SEGMENTATION_BASE_DIR
 
 
-def compare_mask_shapes(
-    base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
+def _build_shape_comparison_results(
+    shapes_by_file: dict[str, dict[str, tuple[int, ...]]] | None = None,
+    base_dir: str | Path = SEGMENTATION_BASE_DIR,
 ) -> dict[str, dict[str, object]]:
-    """
-    This is my function for comparing shapes of masks for each patient.
-    """
-    shapes_by_file = load_mask_shapes(base_dir)
+    if shapes_by_file is None:
+        shapes_by_file = load_mask_shapes(base_dir)
     shape_comparison_results: dict[str, dict[str, object]] = {}
 
     for pat_file, unsorted_shapes_by_rater in sorted(shapes_by_file.items()):
@@ -23,7 +29,7 @@ def compare_mask_shapes(
         # ext_value:    int_dict
         # int_dict:     {"shapes_by_rater": dict, "all_shapes_equal": bool, "reference_shape": tuple/None}
 
-        # mask_comparison_results = {
+        # shape_comparison_results = {
         #     patient_1: {
         #         "shapes_by_rater": {rater_1: shape_1_1, rater_2: shape_1_2, ...},
         #         "all_shapes_equal": True,
@@ -34,12 +40,28 @@ def compare_mask_shapes(
     return shape_comparison_results
 
 
-def print_shape_comparison_report(
-    base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
-) -> None:
-    mask_comparison_results = compare_mask_shapes(base_dir)
+def compare_mask_shapes(
+    shapes_by_file: dict[str, dict[str, tuple[int, ...]]] | None = None,
+    base_dir: str | Path = SEGMENTATION_BASE_DIR,
+) -> bool:
+    """
+    This is my function for checking whether mask shapes match for all patients.
+    """
+    shape_comparison_results = _build_shape_comparison_results(
+        shapes_by_file=shapes_by_file,
+        base_dir=base_dir,
+    )
+    return all(
+        result["all_shapes_equal"] for result in shape_comparison_results.values()
+    )
 
-    for file_name, result in mask_comparison_results.items():
+
+def print_shape_comparison_report(
+    base_dir: str | Path = SEGMENTATION_BASE_DIR,
+) -> None:
+    shape_comparison_results = _build_shape_comparison_results(base_dir=base_dir)
+
+    for file_name, result in shape_comparison_results.items():
         print(f"\n{file_name}")
 
         if result["all_shapes_equal"]:

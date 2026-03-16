@@ -4,8 +4,14 @@ from pathlib import Path
 
 import numpy as np
 
-from src.display_names import get_display_pat_file_name, get_display_rater_name
-from src.unify_masks import unify_masks_to_binary
+try:
+    from .display_names import get_display_pat_file_name, get_display_rater_name
+    from .load_masks import unify_masks_to_binary
+    from .paths import DICE_SCORES_CSV, SEGMENTATION_BASE_DIR
+except ImportError:
+    from display_names import get_display_pat_file_name, get_display_rater_name
+    from load_masks import unify_masks_to_binary
+    from paths import DICE_SCORES_CSV, SEGMENTATION_BASE_DIR
 
 
 def calculate_dice_score(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
@@ -28,12 +34,14 @@ def calculate_dice_score(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
 
 
 def calculate_dice_scores_by_pat_files(
-    base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
+    binary_mask_arrays_by_file: dict[str, dict[str, np.ndarray]] | None = None,
+    base_dir: str | Path = SEGMENTATION_BASE_DIR,
 ) -> dict[str, list[dict[str, object]]]:
     """
     This is my function for calculating dice scores for each patient and rater pair.
     """
-    binary_masks_by_file = unify_masks_to_binary(base_dir)
+    if binary_mask_arrays_by_file is None:
+        binary_mask_arrays_by_file = unify_masks_to_binary(base_dir)
 
     dice_scores_by_file: dict[str, list[dict[str, object]]] = {}
 
@@ -49,13 +57,17 @@ def calculate_dice_scores_by_pat_files(
     #     "dice_score": float,
     # }
 
-    for pat_file, masks_by_rater in sorted(binary_masks_by_file.items()):
+    for pat_file, binary_mask_arrays_by_rater in sorted(
+        binary_mask_arrays_by_file.items()
+    ):
         dice_scores_by_file[pat_file] = []
 
-        for rater_a, rater_b in combinations(sorted(masks_by_rater), 2):
-            mask_a = masks_by_rater[rater_a]
-            mask_b = masks_by_rater[rater_b]
-            dice_score = calculate_dice_score(mask_a, mask_b)
+        for rater_a, rater_b in combinations(sorted(binary_mask_arrays_by_rater), 2):
+            binary_mask_array_a = binary_mask_arrays_by_rater[rater_a]
+            binary_mask_array_b = binary_mask_arrays_by_rater[rater_b]
+            dice_score = calculate_dice_score(
+                binary_mask_array_a, binary_mask_array_b
+            )
 
             dice_scores_by_file[pat_file].append(
                 {
@@ -69,9 +81,9 @@ def calculate_dice_scores_by_pat_files(
 
 
 def print_dice_score_report(
-    base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
+    base_dir: str | Path = SEGMENTATION_BASE_DIR,
 ) -> None:
-    dice_scores_by_pat_file = calculate_dice_scores_by_pat_files(base_dir)
+    dice_scores_by_pat_file = calculate_dice_scores_by_pat_files(base_dir=base_dir)
 
     for pat_file, file_results in dice_scores_by_pat_file.items():
         print(f"\n{pat_file}")
@@ -82,18 +94,17 @@ def print_dice_score_report(
             )
 
 
-def save_dice_scores_to_csv(
-    base_dir: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists",
-    output_path: str = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/dice_scores.csv",
+def save_dice_scores_by_pat_to_csv(
+    dice_scores_by_file: dict[str, list[dict[str, object]]],
+    output_path: str | Path = DICE_SCORES_CSV,
 ) -> Path:
     """
     This is my function for saving dice scores to csv file.
     """
-    dice_scores_by_pat_file = calculate_dice_scores_by_pat_files(base_dir)
-    csv_path = Path(output_path)
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    dice_csv_path = Path(output_path)
+    dice_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with csv_path.open("w", newline="", encoding="utf-8") as csv_file:
+    with dice_csv_path.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(
             [
@@ -107,7 +118,7 @@ def save_dice_scores_to_csv(
             ]
         )
 
-        for pat_file, calculation_results in dice_scores_by_pat_file.items():
+        for pat_file, calculation_results in dice_scores_by_file.items():
             for result in calculation_results:
                 writer.writerow(
                     [
@@ -121,9 +132,9 @@ def save_dice_scores_to_csv(
                     ]
                 )
 
-    return csv_path
+    return dice_csv_path
 
 
 if __name__ == "__main__":
     # print_dice_score_report()
-    save_dice_scores_to_csv()
+    save_dice_scores_by_pat_to_csv(calculate_dice_scores_by_pat_files())

@@ -5,64 +5,27 @@ from pathlib import Path
 import numpy as np
 import SimpleITK as sitk
 
-from display_names import get_display_pat_file_name, get_display_rater_name
-
-
-SEGMENTATION_BASE_DIR = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/segmentations_from_radiologists"
-MRI_BASE_DIR = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/data/patients_for_annotation"
-OVERLAY_OUTPUT_DIR = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/overlay_masks"
-OVERLAY_INDEX_CSV = "/home/sophieschouten/Internship/MOIS_SAM2_NF/segmentation_analysis/results/overlay_masks.csv"
-
-
-def _load_binary_mask_images(
-    base_dir: str = SEGMENTATION_BASE_DIR,
-) -> dict[str, dict[str, sitk.Image]]:
-    base_path = Path(base_dir)
-
-    if not base_path.exists():
-        raise FileNotFoundError(f"Directory not found: {base_path}")
-
-    binary_images_by_file: dict[str, dict[str, sitk.Image]] = {}
-    # ext_dict:
-    #     key:    pat_file.name
-    #     value:  int_dict
-    # int_dict:
-    #     key:    rater_dir.name
-    #     value:  binary_image (sitk.Image)
-
-    for rater_dir in sorted(path for path in base_path.iterdir() if path.is_dir()):
-        # rater_dirs = []
-        # for path in base_path.iterdir():
-        #     if path.is_dir():
-        #         rater_dirs.append(path)
-
-        # rater_dirs = sorted(rater_dirs)
-
-        # for rater_dir in rater_dirs:
-
-        for pat_file in sorted(rater_dir.glob("*.nii.gz")):
-            mask = sitk.ReadImage(str(pat_file))
-            mask_array = (sitk.GetArrayFromImage(mask) >= 1).astype(np.uint8)
-            binary_image = sitk.GetImageFromArray(mask_array)
-            binary_image.CopyInformation(mask)
-
-            # binary_images_by_file.setdefault(pat_file.name, {})[
-            #     rater_dir.name
-            # ] = binary_masks
-
-            if pat_file.name not in binary_images_by_file:
-                binary_images_by_file[pat_file.name] = {}
-
-            binary_images_by_file[pat_file.name][rater_dir.name] = binary_image
-
-    if not binary_images_by_file:
-        raise FileNotFoundError(f"No .nii.gz files found in: {base_path}")
-
-    return binary_images_by_file
-
+try:
+    from .display_names import get_display_pat_file_name, get_display_rater_name
+    from .load_masks import unify_masks_to_binary
+    from .paths import (
+        OVERLAY_INDEX_CSV,
+        OVERLAY_MASKS_DIR,
+        PATIENTS_FOR_ANNOTATION_DIR,
+        SEGMENTATION_BASE_DIR,
+    )
+except ImportError:
+    from display_names import get_display_pat_file_name, get_display_rater_name
+    from load_masks import unify_masks_to_binary
+    from paths import (
+        OVERLAY_INDEX_CSV,
+        OVERLAY_MASKS_DIR,
+        PATIENTS_FOR_ANNOTATION_DIR,
+        SEGMENTATION_BASE_DIR,
+    )
 
 def find_reference_mri_images(
-    mri_base_dir: str = MRI_BASE_DIR,
+    mri_base_dir: str | Path = PATIENTS_FOR_ANNOTATION_DIR,
 ) -> dict[str, Path]:
     mri_base_path = Path(mri_base_dir)
 
@@ -98,12 +61,13 @@ def create_overlay_mask(mask_a: np.ndarray, mask_b: np.ndarray) -> np.ndarray:
 
 
 def save_overlay_masks(
-    segm_base_dir: str = SEGMENTATION_BASE_DIR,
-    mri_base_dir: str = MRI_BASE_DIR,
-    output_dir: str = OVERLAY_OUTPUT_DIR,
-    index_csv_path: str = OVERLAY_INDEX_CSV,
+    binary_mask_arrays_by_file: dict[str, dict[str, np.ndarray]] | None = None,
+    mri_base_dir: str | Path = PATIENTS_FOR_ANNOTATION_DIR,
+    output_dir: str | Path = OVERLAY_MASKS_DIR,
+    index_csv_path: str | Path = OVERLAY_INDEX_CSV,
 ) -> list[dict[str, str]]:
-    binary_images_by_file = _load_binary_mask_images(segm_base_dir)
+    if binary_mask_arrays_by_file is None:
+        binary_mask_arrays_by_file = unify_masks_to_binary(SEGMENTATION_BASE_DIR)
     reference_mri_paths_by_file = find_reference_mri_images(mri_base_dir)
 
     output_path = Path(output_dir)
@@ -111,7 +75,9 @@ def save_overlay_masks(
 
     saved_overlays: list[dict[str, str]] = []
 
-    for pat_file, masks_by_rater in sorted(binary_images_by_file.items()):
+    for pat_file, binary_mask_arrays_by_rater in sorted(
+        binary_mask_arrays_by_file.items()
+    ):
         if pat_file not in reference_mri_paths_by_file:
             raise FileNotFoundError(f"No matching MRI file found for: {pat_file}")
 
@@ -119,15 +85,16 @@ def save_overlay_masks(
         file_output_dir.mkdir(parents=True, exist_ok=True)
 
         reference_mri_path = reference_mri_paths_by_file[pat_file]
+        reference_mri_image = sitk.ReadImage(str(reference_mri_path))
 
-        for rater_a, rater_b in combinations(sorted(masks_by_rater), 2):
-            mask_image_a = masks_by_rater[rater_a]
-            mask_image_b = masks_by_rater[rater_b]
-            mask_a = sitk.GetArrayFromImage(mask_image_a)
-            mask_b = sitk.GetArrayFromImage(mask_image_b)
-            overlay_array = create_overlay_mask(mask_a, mask_b)
+        for rater_a, rater_b in combinations(sorted(binary_mask_arrays_by_rater), 2):
+            binary_mask_array_a = binary_mask_arrays_by_rater[rater_a]
+            binary_mask_array_b = binary_mask_arrays_by_rater[rater_b]
+            overlay_array = create_overlay_mask(
+                binary_mask_array_a, binary_mask_array_b
+            )
             overlay_image = sitk.GetImageFromArray(overlay_array)
-            overlay_image.CopyInformation(mask_image_a)
+            overlay_image.CopyInformation(reference_mri_image)
 
             rater_label_a = get_display_rater_name(rater_a)
             rater_label_b = get_display_rater_name(rater_b)
